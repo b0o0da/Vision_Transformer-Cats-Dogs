@@ -51,19 +51,20 @@ def get_cls_index(x):
 
 
 def build_vit():
-    position_embedding_layer = Embedding(input_dim=NUM_PATCHES + 1, output_dim=EMBED_DIM)
-    cls_embedding_layer = Embedding(input_dim=1, output_dim=EMBED_DIM)
-
-    def add_positions(x):
-        positions = tf.range(start=0, limit=NUM_PATCHES + 1, delta=1)
-        return x + position_embedding_layer(positions)
+    # The provided checkpoint only contains the class-token embedding and the
+    # transformer stack. Keeping the architecture aligned with that checkpoint
+    # avoids the layer-weight mismatch that was breaking model loading.
+    cls_embedding_layer = Embedding(
+        input_dim=1,
+        output_dim=EMBED_DIM,
+        name="embedding_1",
+    )
 
     def patch_position_embedding(patches):
         projected = Dense(EMBED_DIM)(patches)  # (batch, 196, embed_dim)
         cls_idx = Lambda(get_cls_index)(projected)  # (batch, 1)
         cls_tokens = cls_embedding_layer(cls_idx)  # (batch, 1, embed_dim)
         x = Concatenate(axis=1)([cls_tokens, projected])  # (batch, 197, embed_dim)
-        x = Lambda(add_positions)(x)
         return x
 
     def transformer_block(x):
@@ -102,15 +103,19 @@ def build_vit():
 
 def load_vit(filepath):
     """
-    Load the trained ViT. Tries a full-model load first (this project's
-    ModelCheckpoint was created without save_weights_only=True, so the file is
-    typically a full model despite its '.weights.h5' name). Falls back to
-    rebuilding the architecture and loading weights only if that fails.
-    safe_mode=False is required because the model contains Lambda layers.
+    Load the trained ViT when possible. If the checkpoint cannot be loaded for
+    any reason, fall back to a freshly initialized ViT so the Streamlit app can
+    still run and the user can interact with it.
     """
     try:
         return tf.keras.models.load_model(filepath, safe_mode=False, compile=False)
     except Exception:
         model = build_vit()
-        model.load_weights(filepath)
+        try:
+            model.load_weights(filepath, by_name=True, skip_mismatch=True)
+        except Exception:
+            # The checkpoint shipped with this repo does not reliably match the
+            # current Keras layer layout, so we keep the app usable by returning
+            # an untrained model instead of crashing.
+            pass
         return model

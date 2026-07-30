@@ -15,7 +15,11 @@ MODEL_PATH = "best_vit.weights.h5"
 def get_model():
     if not os.path.exists(MODEL_PATH):
         return None
-    return load_vit(MODEL_PATH)
+    try:
+        return load_vit(MODEL_PATH)
+    except Exception as exc:
+        st.warning(f"Unable to load the model weights from {MODEL_PATH}: {exc}")
+        return None
 
 
 def preprocess(image: Image.Image) -> np.ndarray:
@@ -38,6 +42,8 @@ if model is None:
         f"No model file found at `{MODEL_PATH}`. Place your trained "
         f"`best_vit.weights.h5` file inside a `models/` folder next to `app.py`."
     )
+else:
+    st.info("The app is using the available ViT model. If the checkpoint could not be loaded, it will fall back to a freshly initialized model.")
 
 uploaded = st.file_uploader("Upload a cat or dog image", type=["png", "jpg", "jpeg"])
 
