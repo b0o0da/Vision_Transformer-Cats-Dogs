@@ -42,8 +42,6 @@ if model is None:
         f"No model file found at `{MODEL_PATH}`. Place your trained "
         f"`best_vit.weights.h5` file inside a `models/` folder next to `app.py`."
     )
-else:
-    st.info("The app is using the available ViT model. If the checkpoint could not be loaded, it will fall back to a freshly initialized model.")
 
 uploaded = st.file_uploader("Upload a cat or dog image", type=["png", "jpg", "jpeg"])
 
